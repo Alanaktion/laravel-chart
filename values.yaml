@@ -16,8 +16,13 @@ fullnameOverride: ""
 
 podAnnotations: {}
 
-podSecurityContext: {}
-  # fsGroup: 2000
+podSecurityContext:
+  fsGroup: 33
+  fsGroupChangePolicy: Always
+
+initSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 33
 
 securityContext: {}
   # capabilities:
@@ -29,7 +34,7 @@ securityContext: {}
 
 service:
   type: ClusterIP
-  port: 8000
+  port: 80
 
 ingress:
   enabled: false
@@ -73,6 +78,10 @@ app:
   env: {}
   # Set to an existing secret to add additional env vars
   envVarsSecret: ""
+  # Keep app htdocs directory
+  persistence:
+    enabled: false
+    size: 8Gi
 
 git:
   image: bitnami/git:2.40.0-debian-11-r4

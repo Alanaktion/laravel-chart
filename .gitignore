@@ -1,2 +1,2 @@
 /charts/*.tgz
-/local-values.yaml
+/values-*.yaml
