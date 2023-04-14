@@ -37,6 +37,12 @@ spec:
             - /bin/bash
             - -ec
             - |
+              git config --global --add safe.directory /var/www
+              if [[ -d /var/www/.git ]]; then
+                echo 'Repo exists, pulling instead of cloning'
+                cd /var/www && git pull origin {{ .Values.appRepo.branch }} || true
+                exit 0
+              fi
               # Allow the mv to move hidden directories
               shopt -s dotglob
               [[ -f "/opt/bitnami/scripts/git/entrypoint.sh" ]] && source "/opt/bitnami/scripts/git/entrypoint.sh"
