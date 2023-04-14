@@ -1,0 +1,19 @@
+apiVersion: v2
+name: laravel-chart
+description: A Helm chart for Laravel
+
+type: application
+
+version: 0.1.0
+
+appVersion: "10"
+
+dependencies:
+  - name: mariadb
+    repository: https://charts.bitnami.com/bitnami
+    version: ^11.5.5
+    condition: mariadb.enabled
+  - name: redis
+    repository: https://charts.bitnami.com/bitnami
+    version: ^17.9.2
+    condition: redis.enabled

@@ -1,0 +1,117 @@
+# Default values for laravel-chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: alanaktion/php
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: 8.2-apache
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: laravel.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: laravel-tls
+  #    hosts:
+  #      - laravel.local
+
+environment: {}
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+app:
+  # Add additional env vars
+  env: {}
+  # Set to an existing secret to add additional env vars
+  envVarsSecret: ""
+
+git:
+  image: bitnami/git:2.40.0-debian-11-r4
+  pullPolicy: IfNotPresent
+
+# Clone repository for application from Git
+appRepo:
+  enabled: false
+  repository: "https://github.com/laravel/laravel.git"
+  branch: "main"
+  enableAutoRefresh: false # Not very usable yet
+  interval: 60
+  resources: {}
+
+node:
+  enabled: false
+  image: node:lts
+  pullPolicy: IfNotPresent
+  args: |
+    npm ci
+    npm run build
+
+composer:
+  enabled: false
+  args: |
+    composer install --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+
+mariadb:
+  enabled: false
+  auth:
+    database: laravel
+    username: laravel
+    password: password
+    rootPassword: password
+
+redis:
+  enabled: false
+  auth:
+    enabled: false
+    password: ""
+  replica:
+    replicaCount: 1

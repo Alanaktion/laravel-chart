@@ -1,0 +1,159 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "laravel-chart.fullname" . }}
+  labels:
+    {{- include "laravel-chart.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "laravel-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "laravel-chart.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- if .Values.appRepo.enabled }}
+        - name: git-clone-repository
+          image: {{ .Values.git.image | quote }}
+          imagePullPolicy: {{ .Values.git.pullPolicy | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              # Allow the mv to move hidden directories
+              shopt -s dotglob
+              [[ -f "/opt/bitnami/scripts/git/entrypoint.sh" ]] && source "/opt/bitnami/scripts/git/entrypoint.sh"
+              git clone {{ .Values.appRepo.repository }} --branch {{ .Values.appRepo.branch }} /tmp/repo
+              [[ "$?" -eq 0 ]] && rm -rf /var/www/html/* && mv /tmp/repo/* /var/www/html/
+          resources: {{- toYaml .Values.appRepo.resources | nindent 12 }}
+          volumeMounts:
+            - name: htdocs
+              mountPath: /var/www/html
+        {{- end }}
+        {{- if .Values.node.enabled }}
+        - name: node-build
+          image: {{ .Values.node.image | quote }}
+          imagePullPolicy: {{ .Values.node.pullPolicy | quote }}
+          workingDir: /var/www/html
+          command:
+            - /bin/bash
+            - -ec
+            - {{ .Values.node.args | quote }}
+          resources: {{- toYaml .Values.appRepo.resources | nindent 12 }}
+          volumeMounts:
+            - name: htdocs
+              mountPath: /var/www/html
+        {{- end }}
+        {{- if .Values.composer.enabled }}
+        - name: composer-install
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          workingDir: /var/www/html
+          command:
+            - /bin/bash
+            - -ec
+            - {{ .Values.composer.args | quote }}
+          resources: {{- toYaml .Values.appRepo.resources | nindent 12 }}
+          volumeMounts:
+            - name: htdocs
+              mountPath: /var/www/html
+        {{- end }}
+      containers:
+        {{- if and .Values.appRepo.enabled .Values.appRepo.enableAutoRefresh }}
+        - name: git-repo-syncer
+          image: {{ .Values.git.image | quote }}
+          imagePullPolicy: {{ .Values.git.pullPolicy | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              [[ -f "/opt/bitnami/scripts/git/entrypoint.sh" ]] && source "/opt/bitnami/scripts/git/entrypoint.sh"
+              while true; do
+                  cd /var/www/html && git pull origin {{ .Values.appRepo.branch }}
+                  sleep {{ .Values.appRepo.interval }}
+              done
+          resources: {{- toYaml .Values.appRepo.resources | nindent 12 }}
+          volumeMounts:
+            - name: htdocs
+              mountPath: /var/www/html
+        {{- end }}
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          env:
+            {{- if .Values.mariadb.enabled }}
+            - name: DB_HOST
+              value: {{ .Chart.Name }}-mariadb
+            - name: DB_DATABASE
+              value: {{ .Values.mariadb.auth.database | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.mariadb.auth.username | quote }}
+            - name: DB_PASSWORD
+              value: {{ .Values.mariadb.auth.password | quote }}
+            {{- end }}
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_HOST
+              value: {{ .Chart.Name }}-redis
+            {{- if .Values.redis.auth.enabled }}
+            - name: REDIS_PASSWORD
+              value: {{ .Values.redis.auth.password | quote }}
+            {{- end }}
+            {{- end }}
+            {{- range $key, $value := .Values.app.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.app.envVarsSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.envVarsSecret | quote }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: htdocs
+              mountPath: /var/www/html
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: htdocs
+          emptyDir: {}
